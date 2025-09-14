@@ -6,18 +6,18 @@ using ClosedXML.Excel;
 
 namespace ConTimeTabler;
 
-class Course
+public class Course
 {
-    public required int Grade { get; set; }            // 학년
-    public required int Credit { get; set; }           // 학점
-    public required string CourseID { get; set; }  // 학수번호
-    public required string CourseNumber { get; set; }  // 교과번호
-    public required string Division { get; set; }        // 이수구분
-    public required string ClassNumber { get; set; }            // 과목번호
-    public required List<(int day, string Room, int start, int end)> Times { get; set; } = []; // 시간 (요일, 강의실, 시작시간, 종료시간)
-    public required string Name { get; set; }              // 교과목명
-    public required string Professor { get; set; }         // 교수명
-    public required string Time { get; set; }
+    public int Grade { get; init; }            // 학년
+    public int Credit { get; init; }           // 학점
+    public required string CourseID { get; init; }  // 학수번호
+    public required string CourseNumber { get; init; }  // 교과번호
+    public required string Division { get; init; }        // 이수구분
+    public required string ClassNumber { get; init; }            // 과목번호
+    public List<(int day, string Room, int start, int end)> Times { get; init; } = new(); // 시간 (요일, 강의실, 시작시간, 종료시간)
+    public required string Name { get; init; }              // 교과목명
+    public required string Professor { get; init; }         // 교수명
+    public required string Time { get; init; }
     
     private string DayToString(int d) => d switch
     {
@@ -43,18 +43,20 @@ class Program
 
         var reader = new ExcelReader(filePath);
         var courses = reader.LoadDistinctCourseNames();
-        /*
-        for (int i = 0; i < courses.Count; i += 5)
+        /* //debuging
+        for (int i = 0; i < courses.Count; i ++)
         {
             Console.WriteLine($"{i + 1}. {courses[i]}");
         }
         */
+        
 
         var selectedCourses = new List<string>
         {
             courses[8], // 1번 과목 선택
             courses[3], // 2번 과목 선택
-            courses[10]
+            courses[640],
+            courses[883],
         };
         var allCourses = reader.LoadCourses(selectedCourses);
         foreach (var course in allCourses)
@@ -68,36 +70,99 @@ class Program
         var groupedCourses = allCourses.GroupBy(c => c.Name)
                       .Select(g => g.ToList())
                       .ToList();
-        var allCombinations = GetAllCombinations(groupedCourses);
-
-        // 출력
-        Console.WriteLine("=== 가능한 모든 시간표 조합 ===");
-        foreach (var combination in allCombinations)
+        // yield 기반 조합 생성, 유효성 검사 및 10개씩 출력
+        int pageSize = 10;
+        var buffer = new List<List<Course>>(pageSize);
+        int page = 1;
+        int idx = 1;
+        foreach (var combination in GenerateSchedulesIterative(groupedCourses))
         {
-            Console.WriteLine(string.Join(",\n ", combination));
+            // 2. 시간표가 수행 가능한지(시간이 겹치지 않는지) 판단
+            if (!IsValidSchedule(combination)) continue;
+            // 3. (필터를 적용한다) - 예시로 추가 필터 없음, 필요시 여기에 추가
+            buffer.Add(combination);
+            // 4. 10개가 되면 출력
+            if (buffer.Count == pageSize)
+            {
+                Console.WriteLine($"=== 가능한 모든 시간표 조합 (충돌 없는 경우만) - {page}페이지 ===");
+                foreach (var combi in buffer)
+                {
+                    Console.WriteLine($"[{idx++}]");
+                    Console.WriteLine(string.Join(",\n ", combi));
+                }
+                buffer.Clear();
+                page++;
+                Console.WriteLine("--- 다음 페이지를 보려면 Enter를 누르세요 ---");
+                Console.ReadLine();
+            }
+        }
+        // 남은 조합 출력
+        if (buffer.Count > 0)
+        {
+            Console.WriteLine($"=== 가능한 모든 시간표 조합 (충돌 없는 경우만) - {page}페이지 ===");
+            foreach (var combi in buffer)
+            {
+                Console.WriteLine($"[{idx++}]");
+                Console.WriteLine(string.Join(",\n ", combi));
+            }
         }
     }
-    // 교과목별 리스트에서 가능한 모든 조합 생성
-    static List<List<T>> GetAllCombinations<T>(List<List<T>> lists)
+    // yield를 이용해 가능한 모든 조합을 하나씩 반환
+    public static IEnumerable<List<Course>> GenerateSchedulesIterative(List<List<Course>> groups)
     {
-        List<List<T>> result = [new List<T>()];
+        int n = groups.Count;
+        if (n == 0) yield break;
 
-        foreach (var list in lists)
+        int[] idx = new int[n]; // 각 그룹에서 선택된 과목의 인덱스
+
+        while (true)
         {
-            var temp = new List<List<T>>();
-            foreach (var prefix in result)
+            var combination = new List<Course>(n);
+            for (int i = 0; i < n; i++)
             {
-                foreach (var item in list)
+                combination.Add(groups[i][idx[i]]);
+            }
+
+            // 시간 충돌 없는 경우만 반환
+            if (IsValidSchedule(combination))
+                yield return combination;
+
+            // 다음 조합으로 이동 (odometer 방식)
+            int k = n - 1;
+            while (k >= 0)
+            {
+                idx[k]++;
+                if (idx[k] < groups[k].Count) break;
+                idx[k] = 0;
+                k--;
+            }
+            if (k < 0) yield break; // 모든 조합 탐색 완료
+        }
+    }
+
+    /// 시간표가 유효한지 검사 (과목 간 시간이 겹치지 않는지 확인)
+    public static bool IsValidSchedule(List<Course> schedule)
+    {
+        var occupied = new HashSet<(int day, int hour)>();
+
+        foreach (var course in schedule)
+        {
+            foreach (var t in course.Times)
+            {
+                for (int h = t.start; h <= t.end; h++)
                 {
-                    var newCombination = new List<T>(prefix) { item };
-                    temp.Add(newCombination);
+                    var slot = (t.day, h);
+                    if (occupied.Contains(slot))
+                    {
+                        return false; // 이미 차지된 시간 → 충돌 발생
+                    }
+                    occupied.Add(slot);
                 }
             }
-            result = temp;
         }
-
-        return result;
+        return true; // 충돌 없음
     }
+
     static string DayToString(int d) => d switch
     {
         0 => "월",
@@ -107,6 +172,5 @@ class Program
         4 => "금",
         _ => "?"
     };
-    
 }
 
