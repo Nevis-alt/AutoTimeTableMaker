@@ -27,7 +27,7 @@ public class Course
     public required string CourseNumber { get; init; }  // 교과번호
     public required string Division { get; init; }        // 이수구분
     public required string ClassNumber { get; init; }            // 과목번호
-    public List<(DayOfWeek day, string Room, int start, int end)> Times { get; init; } = new(); // 시간 (요일, 강의실, 시작시간, 종료시간)
+    public IReadOnlyList<(DayOfWeek day, string Room, int start, int end)> Times { get; init; } = Array.Empty<(DayOfWeek, string, int, int)>(); // 시간 (요일, 강의실, 시작시간, 종료시간)
     public required string Name { get; init; }              // 교과목명
     public required string Professor { get; init; }         // 교수명
     public required string Time { get; init; }
@@ -49,6 +49,83 @@ public class Course
     }
 }
 
+public class ScheduleGenerator
+{
+    private readonly List<List<Course>> _groups;
+    private readonly List<IRealtimeFilter> _filters;
+    public ScheduleGenerator(List<List<Course>> groups, List<IRealtimeFilter> filters)
+    {
+        _groups = groups;
+        _filters = filters ?? new List<IRealtimeFilter>();
+    }
+
+    public IEnumerable<List<Course>> Generate()
+    {
+        int n = _groups.Count;
+        if (n == 0) yield break;
+
+        int[] idx = new int[n];
+        List<Course> schedule = new();
+
+        while (true)
+        {
+            schedule.Clear();
+            var occupiedTimeSlots = new HashSet<(DayOfWeek day, int hour)>();
+            bool valid = true;
+
+            // 현재 idx 조합에 대한 schedule 생성
+            for (int i = 0; i < n; i++)
+            {
+                var course = _groups[i][idx[i]];
+
+                // 실시간 필터 적용
+                foreach (var filter in _filters)
+                {
+                    if (!filter.Apply(course, occupiedTimeSlots))
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if (!valid) break;
+
+                schedule.Add(course);
+                foreach (var t in course.Times)
+                    for (int h = t.start; h <= t.end; h++)
+                        occupiedTimeSlots.Add((t.day, h));
+            }
+
+            if (valid)
+                yield return new List<Course>(schedule);
+
+            // 다음 조합 (odometer 방식) + 백트래킹
+            int k = n - 1;
+            while (k >= 0)
+            {
+                idx[k]++;
+                if (idx[k] < _groups[k].Count) break;
+
+                // 이전 과목의 시간 제거
+                var prevCourse = _groups[k][idx[k] - 1];
+                foreach (var t in prevCourse.Times)
+                    for (int h = t.start; h <= t.end; h++)
+                        occupiedTimeSlots.Remove((t.day, h));
+
+                idx[k] = 0;
+                k--;
+            }
+
+            if (k < 0) yield break;
+
+            // 새 과목 추가
+            var nextCourse = _groups[k][idx[k]];
+            foreach (var t in nextCourse.Times)
+                for (int h = t.start; h <= t.end; h++)
+                    occupiedTimeSlots.Add((t.day, h));
+        }
+    }
+}
 
 class Program
 {
@@ -58,20 +135,20 @@ class Program
 
         var reader = new ExcelReader(filePath);
         var courses = reader.LoadDistinctCourseNames();
-        /* //debuging
+        //debuging
         for (int i = 0; i < courses.Count; i ++)
         {
             Console.WriteLine($"{i + 1}. {courses[i]}");
         }
-        */
         
+
 
         var selectedCourses = new List<string>
         {
             courses[8], // 1번 과목 선택
-            courses[3], // 2번 과목 선택
+            //courses[3], // 2번 과목 선택
             courses[640],
-            courses[883],
+            //courses[883],
         };
         var allCourses = reader.LoadCourses(selectedCourses);
         foreach (var course in allCourses)
@@ -85,19 +162,33 @@ class Program
         var groupedCourses = allCourses.GroupBy(c => c.Name)
                       .Select(g => g.ToList())
                       .ToList();
-        // yield 기반 조합 생성, 유효성 검사 및 10개씩 출력
-        int pageSize = 10;
-        var buffer = new List<List<Course>>(pageSize);
-        int page = 1;
-        int idx = 1;
-        foreach (var combination in GenerateSchedulesIterative(groupedCourses))
+
+        var realtimeFilters = new List<IRealtimeFilter>
         {
-            // 3. (필터를 적용한다) - 예시로 추가 필터 없음, 필요시 여기에 추가
-            buffer.Add(combination);
-            // 4. 10개가 되면 출력
+            new TimeConflictFilter(),
+            // new LunchBreakFilter((DayOfWeek.수, 12, 13)), 등등 추가 가능
+        };
+        var finalFilters = new List<IFinalFilter>
+        {
+            new IdleTimeFilter(2), // 최대 2시간 유휴 시간 허용
+            // 필요시 추가 가능
+        };
+
+        var generator = new ScheduleGenerator(groupedCourses, realtimeFilters);
+
+        int pageSize = 10, page = 1, idx = 1;
+        var buffer = new List<List<Course>>(pageSize);
+
+        // yield 기반 조합 생성, 최종 필터 적용 및 10개씩 출력
+        foreach (var schedule in generator.Generate())
+        {
+            if (finalFilters.Any(f => !f.Apply(schedule)))
+                continue;
+            buffer.Add(schedule);
+
             if (buffer.Count == pageSize)
             {
-                Console.WriteLine($"=== 가능한 모든 시간표 조합 (충돌 없는 경우만) - {page}페이지 ===");
+                Console.WriteLine($"=== {page} 페이지 ===");
                 foreach (var combi in buffer)
                 {
                     Console.WriteLine($"[{idx++}]");
@@ -105,75 +196,19 @@ class Program
                 }
                 buffer.Clear();
                 page++;
-                Console.WriteLine("--- 다음 페이지를 보려면 Enter를 누르세요 ---");
+                Console.WriteLine("--- 다음 페이지를 보려면 Enter ---");
                 Console.ReadLine();
             }
         }
-        // 남은 조합 출력
         if (buffer.Count > 0)
         {
-            Console.WriteLine($"=== 가능한 모든 시간표 조합 (충돌 없는 경우만) - {page}페이지 ===");
+            Console.WriteLine($"=== {page} 페이지 ===");
             foreach (var combi in buffer)
             {
                 Console.WriteLine($"[{idx++}]");
                 Console.WriteLine(string.Join(",\n ", combi));
             }
         }
-    }
-    // yield를 이용해 가능한 모든 조합을 하나씩 반환
-    public static IEnumerable<List<Course>> GenerateSchedulesIterative(List<List<Course>> groups)
-    {
-        int n = groups.Count;
-        if (n == 0) yield break;
-
-        int[] idx = new int[n]; // 각 그룹에서 선택된 과목의 인덱스
-
-        while (true)
-        {
-            var combination = new List<Course>(n);
-            for (int i = 0; i < n; i++)
-            {
-                combination.Add(groups[i][idx[i]]);
-            }
-
-            // 시간 충돌 없는 경우만 반환
-            if (IsValidSchedule(combination))
-                yield return combination;
-
-            // 다음 조합으로 이동 (odometer 방식)
-            int k = n - 1;
-            while (k >= 0)
-            {
-                idx[k]++;
-                if (idx[k] < groups[k].Count) break;
-                idx[k] = 0;
-                k--;
-            }
-            if (k < 0) yield break; // 모든 조합 탐색 완료
-        }
-    }
-
-    /// 시간표가 유효한지 검사 (과목 간 시간이 겹치지 않는지 확인)
-    public static bool IsValidSchedule(List<Course> schedule)
-    {
-        var occupied = new HashSet<(DayOfWeek day, int hour)>();
-
-        foreach (var course in schedule)
-        {
-            foreach (var t in course.Times)
-            {
-                for (int h = t.start; h <= t.end; h++)
-                {
-                    var slot = (t.day, h);
-                    if (occupied.Contains(slot))
-                    {
-                        return false; // 이미 차지된 시간 → 충돌 발생
-                    }
-                    occupied.Add(slot);
-                }
-            }
-        }
-        return true; // 충돌 없음
     }
 
     static string DayToString(DayOfWeek d) => d switch
