@@ -52,12 +52,12 @@ class ExcelReader {
         }
         return courseList;
     }
-    public List<(int day, string Room, int start, int end)> GetTimesValue(string timesString)
+    public List<(DayOfWeek day, string Room, int start, int end)> GetTimesValue(string timesString)
     {
-        var result = new List<(int day, string room, int start, int end)>();
+        var result = new List<(DayOfWeek day, string room, int start, int end)>();
         if (timesString == "(e러닝)")
         {
-            var day = -1; // e러닝은 요일이 없음
+            var day = DayOfWeek.e러닝; // e러닝은 요일이 없음
             var room = "e러닝";
             var start = 0;
             var end = 0;
@@ -73,20 +73,23 @@ class ExcelReader {
                 int start = int.Parse(match.Groups[2].Value);
                 int end = int.Parse(match.Groups[3].Value);
                 string room = match.Groups[4].Value;
-                result.Add((DayStringToInt(day), room, start, end));
+                result.Add((DayStringToEnum(day), room, start, end));
                 //Console.WriteLine($"요일: {day}, 시작: {start}, 종료: {end}, 강의실: {room}");
             }
         }
         return result;
     }
-    static public int DayStringToInt(string d) => d switch
+    static public DayOfWeek DayStringToEnum(string d) => d switch
     {
-        "월" => 0,
-        "화" => 1,
-        "수" => 2,
-        "목" => 3,
-        "금" => 4,
-        _ => -1
+        "월" => DayOfWeek.월,
+        "화" => DayOfWeek.화,
+        "수" => DayOfWeek.수,
+        "목" => DayOfWeek.목,
+        "금" => DayOfWeek.금,
+        "토" => DayOfWeek.토,
+        "일" => DayOfWeek.일,
+        "e러닝" => DayOfWeek.e러닝,
+        _ => (DayOfWeek)(-1)
     };
 }
 

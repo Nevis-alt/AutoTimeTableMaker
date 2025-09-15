@@ -6,6 +6,19 @@ using ClosedXML.Excel;
 
 namespace ConTimeTabler;
 
+
+public enum DayOfWeek
+{
+    월 = 0,
+    화 = 1,
+    수 = 2,
+    목 = 3,
+    금 = 4,
+    토 = 5,
+    일 = 6,
+    e러닝 = -1 // e러닝은 요일이 없음
+}
+
 public class Course
 {
     public int Grade { get; init; }            // 학년
@@ -14,18 +27,20 @@ public class Course
     public required string CourseNumber { get; init; }  // 교과번호
     public required string Division { get; init; }        // 이수구분
     public required string ClassNumber { get; init; }            // 과목번호
-    public List<(int day, string Room, int start, int end)> Times { get; init; } = new(); // 시간 (요일, 강의실, 시작시간, 종료시간)
+    public List<(DayOfWeek day, string Room, int start, int end)> Times { get; init; } = new(); // 시간 (요일, 강의실, 시작시간, 종료시간)
     public required string Name { get; init; }              // 교과목명
     public required string Professor { get; init; }         // 교수명
     public required string Time { get; init; }
-    
-    private string DayToString(int d) => d switch
+
+    private string DayToString(DayOfWeek d) => d switch
     {
-        0 => "월",
-        1 => "화",
-        2 => "수",
-        3 => "목",
-        4 => "금",
+        DayOfWeek.월 => "월",
+        DayOfWeek.화 => "화",
+        DayOfWeek.수 => "수",
+        DayOfWeek.목 => "목",
+        DayOfWeek.금 => "금",
+        DayOfWeek.토 => "토",
+        DayOfWeek.일 => "일",
         _ => "?"
     };
     public override string ToString()
@@ -77,8 +92,6 @@ class Program
         int idx = 1;
         foreach (var combination in GenerateSchedulesIterative(groupedCourses))
         {
-            // 2. 시간표가 수행 가능한지(시간이 겹치지 않는지) 판단
-            if (!IsValidSchedule(combination)) continue;
             // 3. (필터를 적용한다) - 예시로 추가 필터 없음, 필요시 여기에 추가
             buffer.Add(combination);
             // 4. 10개가 되면 출력
@@ -143,7 +156,7 @@ class Program
     /// 시간표가 유효한지 검사 (과목 간 시간이 겹치지 않는지 확인)
     public static bool IsValidSchedule(List<Course> schedule)
     {
-        var occupied = new HashSet<(int day, int hour)>();
+        var occupied = new HashSet<(DayOfWeek day, int hour)>();
 
         foreach (var course in schedule)
         {
@@ -163,13 +176,16 @@ class Program
         return true; // 충돌 없음
     }
 
-    static string DayToString(int d) => d switch
+    static string DayToString(DayOfWeek d) => d switch
     {
-        0 => "월",
-        1 => "화",
-        2 => "수",
-        3 => "목",
-        4 => "금",
+        DayOfWeek.월 => "월",
+        DayOfWeek.화 => "화",
+        DayOfWeek.수 => "수",
+        DayOfWeek.목 => "목",
+        DayOfWeek.금 => "금",
+        DayOfWeek.토 => "토",
+        DayOfWeek.일 => "일",
+        DayOfWeek.e러닝 => "e러닝",
         _ => "?"
     };
 }
