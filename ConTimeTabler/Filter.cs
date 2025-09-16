@@ -113,11 +113,11 @@ public class NoDayFilter : IRealtimeFilter
 
 // 연강 제한 필터
 // 최대 연강 시간을 설정하여 그 이상인 스케줄을 제거
-// 기본값은 4시간
+// 기본값은 5시간
 public class MaxConsecutiveFilter : IRealtimeFilter
 {
     private readonly int maxConsecutive; // 최대 연강 시간
-    public MaxConsecutiveFilter(int maxConsecutive = 4)
+    public MaxConsecutiveFilter(int maxConsecutive = 5)
     {
         if (maxConsecutive <= 0) throw new ArgumentException("연강 제한은 1시간 이상이어야 합니다.");
         this.maxConsecutive = maxConsecutive;

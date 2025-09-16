@@ -9,16 +9,27 @@ namespace ConTimeTabler;
 
 public enum DayOfWeek
 {
-    월 = 0,
-    화 = 1,
-    수 = 2,
-    목 = 3,
-    금 = 4,
-    토 = 5,
-    일 = 6,
+    월 = 1,
+    화 = 2,
+    수 = 3,
+    목 = 4,
+    금 = 5,
+    토 = 6,
+    일 = 0,
     e러닝 = -1 // e러닝은 요일이 없음
 }
+public class CourseTime
+{
+    public DayOfWeek day { get; init; }
+    public string Room { get; init; } = string.Empty;
+    public int start { get; init; }
+    public int end { get; init; }
 
+    public override string ToString()
+    {
+        return $"({day}, {Room}, {start}-{end})";
+    }
+}
 public class Course
 {
     public int Grade { get; init; }            // 학년
@@ -27,7 +38,7 @@ public class Course
     public required string CourseNumber { get; init; }  // 교과번호
     public required string Division { get; init; }        // 이수구분
     public required string ClassNumber { get; init; }            // 과목번호
-    public IReadOnlyList<(DayOfWeek day, string Room, int start, int end)> Times { get; init; } = Array.Empty<(DayOfWeek, string, int, int)>(); // 시간 (요일, 강의실, 시작시간, 종료시간)
+    public IReadOnlyList<CourseTime> Times { get; init; } = new List<CourseTime>(); // 시간 (요일, 강의실, 시작시간, 종료시간)
     public required string Name { get; init; }              // 교과목명
     public required string Professor { get; init; }         // 교수명
     public required string Time { get; init; }
@@ -41,6 +52,7 @@ public class Course
         DayOfWeek.금 => "금",
         DayOfWeek.토 => "토",
         DayOfWeek.일 => "일",
+        DayOfWeek.e러닝 => "e러닝",
         _ => "?"
     };
     public override string ToString()
@@ -140,7 +152,7 @@ class Program
         {
             Console.WriteLine($"{i + 1}. {courses[i]}");
         }
-        
+        JsonLoader.Load(reader.LoadAllCourses(courses));
 
 
         var selectedCourses = new List<string>
@@ -150,7 +162,7 @@ class Program
             courses[640],
             //courses[883],
         };
-        var allCourses = reader.LoadCourses(selectedCourses);
+        var allCourses = reader.LoadSelectCourses(selectedCourses);
         foreach (var course in allCourses)
         {
             Console.WriteLine($"과목명: {course.Name}, 교수명: {course.Professor}");
