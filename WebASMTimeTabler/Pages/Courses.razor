@@ -3,9 +3,15 @@
 
 <PageTitle>강의 목록</PageTitle>
 
+
 <h1>강의 목록</h1>
 
 <p>전체 강의 목록입니다.</p>
+
+<div class="mb-3">
+    <input type="text" class="form-control" placeholder="과목명, 교수명, 과목번호로 검색" @bind="SearchTerm" @bind:event="oninput" />
+
+</div>
 
 @if (courses == null)
 {
@@ -13,25 +19,30 @@
 }
 else
 {
-    <table class="table">
+    
+    <table class="table" style="table-layout: fixed; width: 100%;">
         <thead>
             <tr>
-                <th>학년</th>
-                <th>학점</th>
-                <th>학수번호</th>
-                <th>교과번호</th>
-                <th>이수구분</th>
-                <th>과목번호</th>
-                <th>시간</th>
-                <th>교과목명</th>
-                <th>교수명</th>
-                <th>교과시간</th>
+                <th style="width:3%;">선택</th>
+                <th style="width: 4%; min-width: 30px;">학년</th>
+                <th style="width: 4%; min-width: 30px;">학점</th>
+                <th style="width: 8%; min-width: 60px;">학수번호</th>
+                <th style="width: 8%; min-width: 60px;">교과번호</th>
+                <th style="width: 7%; min-width: 60px;">이수구분</th>
+                <th style="width: 7%; min-width: 60px;">과목번호</th>
+                <th style="width: 25%; min-width: 120px;">시간</th>
+                <th style="width: 24%; min-width: 120px;">교과목명</th>
+                <th style="width: 5%; min-width: 50px;">교수명</th>
+                <th style="width: 5%; min-width: 60px;">교과시간</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var course in courses)
-            {
-                <tr>
+            <!-- 가상화 컴포넌트로 변경, 이놈이 자동으로 foreach 수행해주고 보이는 부분만 자동으로 렌더링해서 바로 뜨게 해줌 굿~ -->
+            <Virtualize Items="filteredCourses" Context="course" TItem="Course" ItemSize="50">  
+                <tr class="@GetSelectedClass(course)">
+                        <td>
+                            <input type="checkbox" checked="@IsSelected(course)" @onclick="() => ToggleCourse(course)" />
+                        </td>
                     <td>@course.Grade</td>
                     <td>@course.Credit</td>
                     <td>@course.CourseID</td>
@@ -40,21 +51,127 @@ else
                     <td>@course.ClassNumber</td>
                     <td>@string.Join(", ", course.Times)</td>
                     <td>@course.Name</td>
-                    <td>@course.Professor</td>
+                    <td>
+                        @if (course.Professor.Contains(","))
+                        {
+                            <span @onclick="() => ToggleProfessorPopup(course)" style="cursor:pointer; text-decoration:underline; color:blue;">
+                                @course.Professor.Split(',')[0] <span style="font-size:0.8em;">외</span>
+                            </span>
+                            @if (showProfessorPopup && popupCourse == course)
+                            {
+                                <div style="position:absolute; background:#fff; border:1px solid #ccc; padding:8px; z-index:1000; box-shadow:0 2px 8px #0002;" @onclick:stopPropagation="true">
+                                    <strong>전체 교수명:</strong><br />
+                                    @foreach (var prof in course.Professor.Split(','))
+                                    {
+                                        <div>@prof.Trim()</div>
+                                    }
+                                    <button class="btn btn-sm btn-secondary mt-2" @onclick="CloseProfessorPopup">닫기</button>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            @course.Professor
+                        }
+                    </td>
                     <td>@course.Time</td>
                 </tr>
-            }
+            </Virtualize>
         </tbody>
     </table>
 }
 
 @code {
+
+    
     private Course[]? courses;
+    private string searchTerm = string.Empty;
+    /*
+    private IEnumerable<Course> filteredCourses =>
+        string.IsNullOrWhiteSpace(searchTerm)
+            ? (courses ?? Array.Empty<Course>())
+            : (courses ?? Array.Empty<Course>()).Where(c =>
+                (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (c.CourseNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+            );
+    */
+    private ICollection<Course> filteredCourses = Array.Empty<Course>();
+    private string SearchTerm
+    {
+        get => searchTerm;
+        set
+        {
+            searchTerm = value ?? string.Empty;
+            ApplyFilter();
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            // 검색창이 비면 전체 목록 복원
+            filteredCourses = (courses ?? Array.Empty<Course>()).ToList();
+        }
+        else
+        {
+            filteredCourses =
+                (courses ?? Array.Empty<Course>()).Where(c =>
+                    (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                ).ToList();
+        }
+
+        StateHasChanged(); // 즉시 UI 갱신
+    }
+
+    // 교수 팝업 상태 관리
+    private bool showProfessorPopup = false;
+    private Course? popupCourse = null;
+
+    private void ToggleProfessorPopup(Course course)
+    {
+        if (showProfessorPopup && popupCourse == course)
+        {
+            showProfessorPopup = false;
+            popupCourse = null;
+        }
+        else
+        {
+            showProfessorPopup = true;
+            popupCourse = course;
+        }
+        StateHasChanged();
+    }
+
+    private void CloseProfessorPopup()
+    {
+        showProfessorPopup = false;
+        popupCourse = null;
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
         courses = await Http.GetFromJsonAsync<Course[]>("sample-data/courses.json");
+        filteredCourses = (courses ?? Array.Empty<Course>()).ToList(); // 최초 로딩 시 전체
     }
+    private HashSet<string> selectedCourseIDs = new HashSet<string>();
+    private void ToggleCourse(Course course)
+    {
+        if (selectedCourseIDs.Contains(course.CourseID))
+            selectedCourseIDs.Remove(course.CourseID);
+        else
+            selectedCourseIDs.Add(course.CourseID);
+
+        StateHasChanged();
+    }
+
+    private bool IsSelected(Course course) => selectedCourseIDs.Contains(course.CourseID);
+    private string GetSelectedClass(Course course) => IsSelected(course) ? "table-primary" : "";
+
 
     public class CourseTime
     {
@@ -94,7 +211,7 @@ else
         public required string ClassNumber { get; init; }            // 과목번호
         public IReadOnlyList<CourseTime> Times { get; init; } = new List<CourseTime>(); // 시간 (요일, 강의실, 시작시간, 종료시간)
         public required string Name { get; init; }              // 교과목명
-        public required string Professor { get; init; }         // 교수명
+        public required string Professor { get; init; }         // 교수명 (여러 명일 경우 ,로 구분)
         public required string Time { get; init; }
         public override string ToString()
         {
