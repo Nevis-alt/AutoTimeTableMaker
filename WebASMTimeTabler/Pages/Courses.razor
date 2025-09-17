@@ -23,7 +23,7 @@ else
     <table class="table" style="table-layout: fixed; width: 100%;">
         <thead>
             <tr>
-                <th style="width:3%;">선택</th>
+                <th style="width: 4%;">선택</th>
                 <th style="width: 4%; min-width: 30px;">학년</th>
                 <th style="width: 4%; min-width: 30px;">학점</th>
                 <th style="width: 8%; min-width: 60px;">학수번호</th>
@@ -31,14 +31,16 @@ else
                 <th style="width: 7%; min-width: 60px;">이수구분</th>
                 <th style="width: 7%; min-width: 60px;">과목번호</th>
                 <th style="width: 25%; min-width: 120px;">시간</th>
-                <th style="width: 24%; min-width: 120px;">교과목명</th>
+                <th style="width: 23%; min-width: 120px;">교과목명</th>
                 <th style="width: 5%; min-width: 50px;">교수명</th>
                 <th style="width: 5%; min-width: 60px;">교과시간</th>
             </tr>
         </thead>
         <tbody>
             <!-- 가상화 컴포넌트로 변경, 이놈이 자동으로 foreach 수행해주고 보이는 부분만 자동으로 렌더링해서 바로 뜨게 해줌 굿~ -->
-            <Virtualize Items="filteredCourses" Context="course" TItem="Course" ItemSize="50">  
+            <!-- 근데 스크롤 할때마다 레전드 버벅거려서 그냥 처음 50개 정도만 로딩하고 나머지는 백그라운드에서 천천히 로딩하게 바꿈 -->
+            @foreach(var course in displayedCourses)
+            {  
                 <tr class="@GetSelectedClass(course)">
                         <td>
                             <input type="checkbox" checked="@IsSelected(course)" @onclick="() => ToggleCourse(course)" />
@@ -76,7 +78,7 @@ else
                     </td>
                     <td>@course.Time</td>
                 </tr>
-            </Virtualize>
+            }
         </tbody>
     </table>
 }
@@ -86,17 +88,9 @@ else
     
     private Course[]? courses;
     private string searchTerm = string.Empty;
-    /*
-    private IEnumerable<Course> filteredCourses =>
-        string.IsNullOrWhiteSpace(searchTerm)
-            ? (courses ?? Array.Empty<Course>())
-            : (courses ?? Array.Empty<Course>()).Where(c =>
-                (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                || (c.CourseNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-            );
-    */
-    private ICollection<Course> filteredCourses = Array.Empty<Course>();
+    private IEnumerable<Course> filteredCourses = new List<Course>();
+    private List<Course> displayedCourses = new List<Course>();
+    private const int batchSize = 50;
     private string SearchTerm
     {
         get => searchTerm;
@@ -111,20 +105,19 @@ else
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
         {
-            // 검색창이 비면 전체 목록 복원
             filteredCourses = (courses ?? Array.Empty<Course>()).ToList();
         }
         else
         {
-            filteredCourses =
-                (courses ?? Array.Empty<Course>()).Where(c =>
-                    (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                    || (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                    || (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+            filteredCourses = (courses ?? Array.Empty<Course>())
+                .Where(c =>
+                    (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
                 ).ToList();
         }
 
-        StateHasChanged(); // 즉시 UI 갱신
+        _ = LoadCoursesIncrementally();
     }
 
     // 교수 팝업 상태 관리
@@ -156,21 +149,38 @@ else
     protected override async Task OnInitializedAsync()
     {
         courses = await Http.GetFromJsonAsync<Course[]>("sample-data/courses.json");
-        filteredCourses = (courses ?? Array.Empty<Course>()).ToList(); // 최초 로딩 시 전체
+        ApplyFilter();
+        //filteredCourses = (courses ?? Array.Empty<Course>()).ToList(); // 최초 로딩 시 전체
     }
-    private HashSet<string> selectedCourseIDs = new HashSet<string>();
+    private HashSet<string> selectedClassNumbers = new HashSet<string>();
     private void ToggleCourse(Course course)
     {
-        if (selectedCourseIDs.Contains(course.CourseID))
-            selectedCourseIDs.Remove(course.CourseID);
+        if (selectedClassNumbers.Contains(course.ClassNumber))
+            selectedClassNumbers.Remove(course.ClassNumber);
         else
-            selectedCourseIDs.Add(course.CourseID);
+            selectedClassNumbers.Add(course.ClassNumber);
 
         StateHasChanged();
     }
 
-    private bool IsSelected(Course course) => selectedCourseIDs.Contains(course.CourseID);
+    private bool IsSelected(Course course) => selectedClassNumbers.Contains(course.ClassNumber);
     private string GetSelectedClass(Course course) => IsSelected(course) ? "table-primary" : "";
+    private async Task LoadCoursesIncrementally()
+    {
+        displayedCourses.Clear();
+        StateHasChanged();
+
+        int index = 0;
+        while (index < filteredCourses.Count())
+        {
+            var batch = filteredCourses.Skip(index).Take(batchSize);
+            displayedCourses.AddRange(batch);
+            index += batchSize;
+
+            StateHasChanged(); // UI 갱신
+            await Task.Delay(20); // 브라우저 렌더링 부담 줄이기
+        }
+    }
 
 
     public class CourseTime
