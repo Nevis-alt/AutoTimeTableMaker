@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using ClosedXML.Excel;
 
 namespace ConTimeTabler;
 
@@ -139,30 +138,11 @@ public class ScheduleGenerator
     }
 }
 
-class Program
+class MainModule
 {
-    static void Run()
+    static void Run(List<Course> selectedCourses)
     {
-        string filePath = "Data/DataBase.xlsx";
-
-        var reader = new ExcelReader(filePath);
-        var courses = reader.LoadDistinctCourseNames();
-        //debuging
-        for (int i = 0; i < courses.Count; i ++)
-        {
-            Console.WriteLine($"{i + 1}. {courses[i]}");
-        }
-        JsonLoader.Load(reader.LoadAllCourses(courses));
-
-
-        var selectedCourses = new List<string>
-        {
-            courses[8], // 1번 과목 선택
-            //courses[3], // 2번 과목 선택
-            courses[640],
-            //courses[883],
-        };
-        var allCourses = reader.LoadSelectCourses(selectedCourses);
+        var allCourses = selectedCourses;//reader.LoadSelectCourses(selectedCourses);
         foreach (var course in allCourses)
         {
             Console.WriteLine($"과목명: {course.Name}, 교수명: {course.Professor}");

@@ -12,14 +12,42 @@
     <input type="text" class="form-control" placeholder="과목명, 교수명, 과목번호로 검색" @bind="SearchTerm" @bind:event="oninput" />
 
 </div>
-
 @if (courses == null)
 {
     <p><em>Loading...</em></p>
 }
 else
-{
-    
+{   
+    <div class="mb-2">
+        <button class="btn btn-sm btn-secondary" @onclick="SelectAllFiltered">현재 목록 전체 선택</button>
+        <button class="btn btn-sm btn-secondary" @onclick="DeselectAllFiltered">현재 목록 전체 해제</button>
+    </div>
+    <h3 class="mt-4 d-flex justify-content-between align-items-center">
+        선택된 과목 목록
+        <button class="btn btn-sm btn-link" @onclick="ToggleSelectedCourses">
+            @(showSelectedCourses ? "▲ 접기" : "▼ 펼치기")
+        </button>
+    </h3>
+
+    @if (showSelectedCourses)
+    {
+        @if (selectedCourses.Count == 0)
+        {
+            <p><em>선택된 과목이 없습니다.</em></p>
+        }
+        else
+        {
+            <ul class="list-group">
+                @foreach (var course in selectedCourses)
+                {
+                    <li @key="course.ClassNumber" class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>@course.Name (@course.Professor)</span>
+                        <button class="btn btn-sm btn-danger" @onclick="() => RemoveCourse(course)">제거</button>
+                    </li>
+                }
+            </ul>
+        }
+    }
     <table class="table" style="table-layout: fixed; width: 100%;">
         <thead>
             <tr>
@@ -39,7 +67,7 @@ else
         <tbody>
             <!-- 가상화 컴포넌트로 변경, 이놈이 자동으로 foreach 수행해주고 보이는 부분만 자동으로 렌더링해서 바로 뜨게 해줌 굿~ -->
             <!-- 근데 스크롤 할때마다 레전드 버벅거려서 그냥 처음 50개 정도만 로딩하고 나머지는 백그라운드에서 천천히 로딩하게 바꿈 -->
-            @foreach(var course in displayedCourses)
+            @foreach(var course in displayedCourses) //@key="course.ClassNumber"
             {  
                 <tr class="@GetSelectedClass(course)">
                         <td>
@@ -87,8 +115,11 @@ else
 
     
     private Course[]? courses;
+
+    //검색 기능 및 필터링
     private string searchTerm = string.Empty;
-    private IEnumerable<Course> filteredCourses = new List<Course>();
+
+    private IEnumerable<Course> filteredCourses = Array.Empty<Course>();
     private List<Course> displayedCourses = new List<Course>();
     private const int batchSize = 50;
     private string SearchTerm
@@ -103,21 +134,79 @@ else
 
     private void ApplyFilter()
     {
-        if (string.IsNullOrWhiteSpace(searchTerm))
+        try
         {
-            filteredCourses = (courses ?? Array.Empty<Course>()).ToList();
+            if (string.IsNullOrWhiteSpace(SearchTerm))
+            {
+                filteredCourses = courses ?? Array.Empty<Course>();
+            }
+            else
+            {
+                filteredCourses = (courses ?? Array.Empty<Course>())
+                    .Where(c =>
+                        (c.Name?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (c.Professor?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (c.ClassNumber?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                    );
+            }
+
+            _ = LoadCoursesIncrementally();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"ApplyFilter error: {ex}");
+            //errorMessage = ex.Message;
+        }
+    }
+    //전체선택 및 해제기능
+    private bool showSelectedCourses = true;
+
+    private void ToggleSelectedCourses()
+    {
+        showSelectedCourses = !showSelectedCourses;
+    }
+    private void SelectAllFiltered()
+    {
+        selectedCourses.UnionWith(filteredCourses);
+        StateHasChanged();
+    }
+
+    private void DeselectAllFiltered()
+    {
+        selectedCourses.ExceptWith(filteredCourses);
+        StateHasChanged();
+    }
+    private void ToggleSelection(Course course)
+    {
+        if (IsSelected(course))
+        {
+            selectedCourses.Remove(course);
         }
         else
+        {   
+            selectedCourses.Add(course);
+        }
+    }
+
+    private void RemoveCourse(Course course)
+    {
+        selectedCourses.Remove(course);
+        StateHasChanged();
+    }
+
+    // Course 비교용 클래스 (ClassNumber 기준)
+    private class CourseComparer : IEqualityComparer<Course>
+    {
+        public bool Equals(Course? x, Course? y)
         {
-            filteredCourses = (courses ?? Array.Empty<Course>())
-                .Where(c =>
-                    (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                ).ToList();
+            if (x is null || y is null) return false;
+            return x.ClassNumber == y.ClassNumber;
         }
 
-        _ = LoadCoursesIncrementally();
+        public int GetHashCode(Course obj)
+        {
+            return obj.ClassNumber?.GetHashCode() ?? 0;
+        }
     }
 
     // 교수 팝업 상태 관리
@@ -128,7 +217,7 @@ else
     {
         if (showProfessorPopup && popupCourse == course)
         {
-            showProfessorPopup = false;
+            showProfessorPopup = false; 
             popupCourse = null;
         }
         else
@@ -136,14 +225,14 @@ else
             showProfessorPopup = true;
             popupCourse = course;
         }
-        StateHasChanged();
+        //StateHasChanged();
     }
 
     private void CloseProfessorPopup()
     {
         showProfessorPopup = false;
         popupCourse = null;
-        StateHasChanged();
+        //StateHasChanged();
     }
 
     protected override async Task OnInitializedAsync()
@@ -152,33 +241,43 @@ else
         ApplyFilter();
         //filteredCourses = (courses ?? Array.Empty<Course>()).ToList(); // 최초 로딩 시 전체
     }
-    private HashSet<string> selectedClassNumbers = new HashSet<string>();
+    private HashSet<Course> selectedCourses = new HashSet<Course>(new CourseComparer());
     private void ToggleCourse(Course course)
     {
-        if (selectedClassNumbers.Contains(course.ClassNumber))
-            selectedClassNumbers.Remove(course.ClassNumber);
-        else
-            selectedClassNumbers.Add(course.ClassNumber);
+        if (!selectedCourses.Add(course)) // 이미 있으면 제거
+            selectedCourses.Remove(course);
 
         StateHasChanged();
     }
 
-    private bool IsSelected(Course course) => selectedClassNumbers.Contains(course.ClassNumber);
+    private bool IsSelected(Course course) => selectedCourses.Contains(course);
     private string GetSelectedClass(Course course) => IsSelected(course) ? "table-primary" : "";
     private async Task LoadCoursesIncrementally()
     {
         displayedCourses.Clear();
-        StateHasChanged();
-
-        int index = 0;
-        while (index < filteredCourses.Count())
+        try
         {
-            var batch = filteredCourses.Skip(index).Take(batchSize);
-            displayedCourses.AddRange(batch);
-            index += batchSize;
+            //if (filteredCourses == null)
+            //    filteredCourses = Array.Empty<Course>();
+            var uniqueCourses = filteredCourses
+            .GroupBy(c => c.ClassNumber)
+            .Select(g => g.First())
+            .ToList();
 
-            StateHasChanged(); // UI 갱신
-            await Task.Delay(20); // 브라우저 렌더링 부담 줄이기
+            int index = 0;
+            while (index < uniqueCourses.Count())
+            {
+                var batch = uniqueCourses.Skip(index).Take(batchSize).ToList();
+                displayedCourses.AddRange(batch);
+                index += batch.Count;
+
+                StateHasChanged(); // UI 갱신
+                await Task.Delay(10);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"LoadCoursesIncrementally error: {ex}");
         }
     }
 
