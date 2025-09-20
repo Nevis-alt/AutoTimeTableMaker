@@ -73,10 +73,11 @@ else
         <tbody>
             <!-- 가상화 컴포넌트로 변경, 이놈이 자동으로 foreach 수행해주고 보이는 부분만 자동으로 렌더링해서 바로 뜨게 해줌 굿~ -->
             <!-- 근데 스크롤 할때마다 레전드 버벅거려서 그냥 처음 50개 정도만 로딩하고 나머지는 백그라운드에서 천천히 로딩하게 바꿈 -->
-            @foreach(var course in displayedCourses) //
-            {  
-                <CourseItem Course="course" IsSelected="IsSelected(course)" OnToggleSelection="ToggleCourse" />
-            }
+            <Virtualize Items="@filteredCourses" Context="course" ItemSize="53" OverscanCount="50">
+                <CourseItem @key="course.ClassNumber" Course="course" IsSelected="IsSelected(course)" OnToggleSelection="ToggleCourse" />
+            </Virtualize>
+            
+            
         </tbody>
     </table>
 }
@@ -90,42 +91,48 @@ else
     //검색 기능 및 필터링
     private string searchTerm = string.Empty;
 
-    private IEnumerable<Course> filteredCourses = Array.Empty<Course>();
-    private List<Course> displayedCourses = new List<Course>();
+    private IList<Course> filteredCourses = new List<Course>();
+    //private List<Course> displayedCourses = new List<Course>();
     private const int batchSize = 50;
     private async Task OnSearchTermChanged(ChangeEventArgs e)
     {
         searchTerm = e.Value?.ToString() ?? string.Empty;
-        await ApplyFilter();
+        //await ApplyFilter();
+        await Task.Run(() => ApplyFilter());
     }
-    /*
     private void ApplyFilter()
     {
-        try
+        /*
+        if (string.IsNullOrWhiteSpace(searchTerm))
         {
-            if (string.IsNullOrWhiteSpace(SearchTerm))
-            {
-                filteredCourses = courses ?? Array.Empty<Course>();
-            }
-            else
-            {
-                filteredCourses = (courses ?? Array.Empty<Course>())
-                    .Where(c =>
-                        (c.Name?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                        (c.Professor?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                        (c.ClassNumber?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                    );
-            }
+            filteredCourses = courses ?? Array.Empty<Course>();
+        }
+        else
+        {
+            filteredCourses = (courses ?? Array.Empty<Course>())
+                .Where(c =>
+                    (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                )
+                .ToList();
+        }
+        */
+        filteredCourses.Clear();
 
-            _ = LoadCoursesIncrementally();
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"ApplyFilter error: {ex}");
-            //errorMessage = ex.Message;
-        }
+        var list = string.IsNullOrWhiteSpace(searchTerm)
+            ? courses ?? Array.Empty<Course>()
+            : (courses ?? Array.Empty<Course>()).Where(c =>
+                (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+
+        foreach (var c in list)
+            filteredCourses.Add(c);
+
+        StateHasChanged();
     }
-    */
+    /*
     private async Task ApplyFilter()
     {
         // 이전 작업이 있다면 취소
@@ -156,6 +163,7 @@ else
             Console.Error.WriteLine($"ApplyFilter error: {ex}");
         }
     }
+    */
     // 고속 검색어 추가&삭제 시 오류 발생하는 문제 해결용
     private CancellationTokenSource cts = new CancellationTokenSource();
 
@@ -178,17 +186,6 @@ else
         selectedCourses.ExceptWith(filteredCourses);
         StateHasChanged();
     }
-    private void ToggleSelection(Course course)
-    {
-        if (IsSelected(course))
-        {
-            selectedCourses.Remove(course);
-        }
-        else
-        {   
-            selectedCourses.Add(course);
-        }
-    }
 
     private void RemoveCourse(Course course)
     {
@@ -204,9 +201,27 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        courses = await Http.GetFromJsonAsync<Course[]>("sample-data/courses.json");
-        await ApplyFilter();
-        //filteredCourses = (courses ?? Array.Empty<Course>()).ToList(); // 최초 로딩 시 전체
+        // courses가 null일 때만 데이터를 로드 (최초 1회)
+        if (courses == null)
+        {
+            try
+            {
+                courses = await Http.GetFromJsonAsync<Course[]>("sample-data/courses.json");
+                //await ApplyFilter();
+                ApplyFilter();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error loading courses: {ex.Message}");
+                // 로딩 실패 시 사용자에게 알리는 UI 로직 추가 가능
+            }
+        }
+        else
+        {
+            // 이미 로딩된 데이터가 있다면 필터만 다시 적용
+            //await ApplyFilter();
+            ApplyFilter();
+        }
     }
 
     private HashSet<Course> selectedCourses = new HashSet<Course>(new CourseComparer());
@@ -219,6 +234,7 @@ else
     }
 
     private bool IsSelected(Course course) => selectedCourses.Contains(course);
+    /*
     private async Task LoadCoursesIncrementally(CancellationToken cancellationToken)
     {
         displayedCourses.Clear();
@@ -226,12 +242,7 @@ else
         {
             //if (filteredCourses == null)
             //    filteredCourses = Array.Empty<Course>();
-            /*
-            var uniqueCourses = filteredCourses
-            .GroupBy(c => c.ClassNumber)
-            .Select(g => g.First())
-            .ToList();
-            */
+
             
 
             int index = 0;
@@ -259,4 +270,11 @@ else
             Console.Error.WriteLine($"LoadCoursesIncrementally error: {ex}");
         }
     }
+    */
+    /*
+                @foreach(var course in displayedCourses)
+            {  
+                <CourseItem Course="course" IsSelected="IsSelected(course)" OnToggleSelection="ToggleCourse" />
+            }
+    */
 }
