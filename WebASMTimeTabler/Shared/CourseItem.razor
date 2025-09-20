@@ -1,0 +1,81 @@
+@using WebASMTimeTabler.Models
+@using Microsoft.AspNetCore.Components
+
+<tr @key="Course.ClassNumber" class="@GetSelectedClass()">
+        <td>
+            <input type="checkbox" checked="@IsSelected" @onclick="ToggleCourse" />
+        </td>
+    <td>@Course.Grade</td>
+    <td>@Course.Credit</td>
+    <td>@Course.CourseID</td>
+    <td>@Course.CourseNumber</td>
+    <td>@Course.Division</td>
+    <td>@Course.ClassNumber</td>
+    <td>@string.Join(", ", Course.Times)</td>
+    <td>@Course.Name</td>
+    <td>
+        @if (Course.Professor.Contains(","))
+        {
+            <span @onclick="() => ToggleProfessorPopup(Course)" style="cursor:pointer; text-decoration:underline; color:blue;">
+                @Course.Professor.Split(',')[0] <span style="font-size:0.8em;">외</span>
+            </span>
+            @if (showProfessorPopup && popupCourse == Course)
+            {
+                <div style="position:absolute; background:#fff; border:1px solid #ccc; padding:8px; z-index:1000; box-shadow:0 2px 8px #0002;" @onclick:stopPropagation="true">
+                    <strong>전체 교수명:</strong><br />
+                    @foreach (var prof in Course.Professor.Split(','))
+                    {
+                        <div>@prof.Trim()</div>
+                    }
+                    <button class="btn btn-sm btn-secondary mt-2" @onclick="CloseProfessorPopup">닫기</button>
+                </div>
+            }
+        }
+        else
+        {
+            @Course.Professor
+        }
+    </td>
+    <td>@Course.Time</td>
+</tr>
+
+@code{
+    [Parameter]
+    public Course Course { get; set; } = default!;
+
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<Course> OnToggleSelection { get; set; }
+
+    private string GetSelectedClass() => IsSelected ? "table-primary" : "";
+
+    private Task ToggleCourse()
+    {
+        return OnToggleSelection.InvokeAsync(Course);
+    }
+        // 교수 팝업 상태 관리
+    private bool showProfessorPopup = false;
+    private Course? popupCourse = null;
+
+    private void ToggleProfessorPopup(Course course)
+    {
+        if (showProfessorPopup && popupCourse == course)
+        {
+            showProfessorPopup = false; 
+            popupCourse = null;
+        }
+        else
+        {
+            showProfessorPopup = true;
+            popupCourse = course;
+        }
+    }
+
+    private void CloseProfessorPopup()
+    {
+        showProfessorPopup = false;
+        popupCourse = null;
+    }
+}
