@@ -28,9 +28,9 @@ else
         <button class="btn btn-sm btn-secondary" @onclick="SelectAllFiltered">현재 목록 전체 선택</button>
         <button class="btn btn-sm btn-secondary" @onclick="DeselectAllFiltered">현재 목록 전체 해제</button>
     </div>
-    <h3 class="mt-4 d-flex justify-content-between align-items-center">
-        선택된 과목 목록
-        <button class="btn btn-sm btn-link" @onclick="ToggleSelectedCourses">
+    <h3 class="mt-4 d-flex align-items-center">
+        <span>선택된 과목 @(selectedCourses.Count)개</span>
+        <button class="btn btn-sm btn-link ms-2" @onclick="ToggleSelectedCourses">
             @(showSelectedCourses ? "▲ 접기" : "▼ 펼치기")
         </button>
     </h3>
@@ -71,8 +71,7 @@ else
             </tr>
         </thead>
         <tbody>
-            <!-- 가상화 컴포넌트로 변경, 이놈이 자동으로 foreach 수행해주고 보이는 부분만 자동으로 렌더링해서 바로 뜨게 해줌 굿~ -->
-            <!-- 근데 스크롤 할때마다 레전드 버벅거려서 그냥 처음 50개 정도만 로딩하고 나머지는 백그라운드에서 천천히 로딩하게 바꿈 -->
+            <!-- 가상화 컴포넌트, 이놈이 자동으로 foreach 수행하고 보이는 부분만 렌더링함. OverscanCount 넉넉하게 잡아야 버벅거림 적음-->
             <Virtualize Items="@filteredCourses" Context="course" ItemSize="53" OverscanCount="50">
                 <CourseItem @key="course.ClassNumber" Course="course" IsSelected="IsSelected(course)" OnToggleSelection="ToggleCourse" />
             </Virtualize>
@@ -86,38 +85,27 @@ else
 
     
     private Course[]? courses;
-
+    private bool debounceFlag = true;
 
     //검색 기능 및 필터링
     private string searchTerm = string.Empty;
 
     private IList<Course> filteredCourses = new List<Course>();
-    //private List<Course> displayedCourses = new List<Course>();
     private const int batchSize = 50;
     private async Task OnSearchTermChanged(ChangeEventArgs e)
     {
         searchTerm = e.Value?.ToString() ?? string.Empty;
-        //await ApplyFilter();
-        await Task.Run(() => ApplyFilter());
+
+        bool currentFlag = debounceFlag = !debounceFlag; // true/false 번갈아 저장
+        await Task.Delay(100); // 300ms 대기
+
+        if (currentFlag == debounceFlag) // 최신 입력만 반영
+        {
+            await Task.Run(() => ApplyFilter());
+        }
     }
     private void ApplyFilter()
     {
-        /*
-        if (string.IsNullOrWhiteSpace(searchTerm))
-        {
-            filteredCourses = courses ?? Array.Empty<Course>();
-        }
-        else
-        {
-            filteredCourses = (courses ?? Array.Empty<Course>())
-                .Where(c =>
-                    (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                )
-                .ToList();
-        }
-        */
         filteredCourses.Clear();
 
         var list = string.IsNullOrWhiteSpace(searchTerm)
@@ -132,44 +120,9 @@ else
 
         StateHasChanged();
     }
-    /*
-    private async Task ApplyFilter()
-    {
-        // 이전 작업이 있다면 취소
-        cts.Cancel();
-        cts.Dispose();
-        cts = new CancellationTokenSource();
-
-        // 새 작업 시작
-        try
-        {
-            if (string.IsNullOrWhiteSpace(searchTerm))
-            {
-                filteredCourses = courses ?? Array.Empty<Course>();
-            }
-            else
-            {
-                filteredCourses = (courses ?? Array.Empty<Course>())
-                    .Where(c =>
-                        (c.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                        (c.Professor?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                        (c.ClassNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
-                    ).ToList(); // ToList()를 추가하면 Linq 쿼리가 즉시 실행되어 여러번 호출되지 않습니다.
-            }
-            await LoadCoursesIncrementally(cts.Token);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"ApplyFilter error: {ex}");
-        }
-    }
-    */
-    // 고속 검색어 추가&삭제 시 오류 발생하는 문제 해결용
-    private CancellationTokenSource cts = new CancellationTokenSource();
-
 
     //전체선택 및 해제기능
-    private bool showSelectedCourses = true;
+    private bool showSelectedCourses = false;
 
     private void ToggleSelectedCourses()
     {
@@ -192,12 +145,6 @@ else
         selectedCourses.Remove(course);
         StateHasChanged();
     }
-    // 컴포넌트 종료 시 취소 토큰 소스 해제
-    public void Dispose()
-    {
-        cts?.Cancel();
-        cts?.Dispose();
-    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -207,7 +154,6 @@ else
             try
             {
                 courses = await Http.GetFromJsonAsync<Course[]>("sample-data/courses.json");
-                //await ApplyFilter();
                 ApplyFilter();
             }
             catch (Exception ex)
@@ -219,7 +165,6 @@ else
         else
         {
             // 이미 로딩된 데이터가 있다면 필터만 다시 적용
-            //await ApplyFilter();
             ApplyFilter();
         }
     }
@@ -234,47 +179,4 @@ else
     }
 
     private bool IsSelected(Course course) => selectedCourses.Contains(course);
-    /*
-    private async Task LoadCoursesIncrementally(CancellationToken cancellationToken)
-    {
-        displayedCourses.Clear();
-        try
-        {
-            //if (filteredCourses == null)
-            //    filteredCourses = Array.Empty<Course>();
-
-            
-
-            int index = 0;
-            while (index < filteredCourses.Count())
-            {
-                // 취소 요청이 있었는지 확인
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-                var batch = filteredCourses.Skip(index).Take(batchSize).ToList();
-                displayedCourses.AddRange(batch);
-                index += batch.Count;
-
-                StateHasChanged(); // UI 갱신
-                await Task.Delay(10, cancellationToken); // 지연 시간도 취소 가능하도록 +  지연 시간을 두어서 성능 부하 완화
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // 작업이 취소된 경우 무시
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"LoadCoursesIncrementally error: {ex}");
-        }
-    }
-    */
-    /*
-                @foreach(var course in displayedCourses)
-            {  
-                <CourseItem Course="course" IsSelected="IsSelected(course)" OnToggleSelection="ToggleCourse" />
-            }
-    */
 }
