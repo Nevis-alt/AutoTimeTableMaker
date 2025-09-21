@@ -1,0 +1,49 @@
+﻿@page "/timetable"
+@using WebASMTimeTabler.Core
+@inject ScheduleStateService StateService
+@inject ScheduleService ScheduleService
+
+<PageTitle>시간표</PageTitle>
+
+<h1>생성된 시간표</h1>
+
+@if (generatedSchedules == null)
+{
+    <p><em>시간표 생성 중...</em></p>
+}
+else if (!generatedSchedules.Any())
+{
+    <p><em>시간표가 없습니다.</em></p>
+}
+else
+{
+    @foreach (var (schedule, idx) in generatedSchedules.Select((s, i) => (s, i + 1)))
+    {
+        <div class="card my-2 p-2">
+            <h5>시간표 @idx</h5>
+            <ul>
+                @foreach (var c in schedule)
+                {
+                    <li>@c.Name (@c.Professor) - @string.Join(", ", c.Times)</li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    private List<List<Course>> generatedSchedules = new();
+
+    protected override void OnInitialized()
+    {
+        var selected = StateService.SelectedCourses;
+        if (selected.Any())
+        {
+            generatedSchedules = ScheduleService.GenerateSchedules(selected);
+        }
+        else
+        {
+            generatedSchedules = new List<List<Course>>();
+        }
+    }
+}

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace ConTimeTabler;
+namespace WebASMTimeTabler.Core;
 
 // ================== 실시간 필터 시스템 ==================
 public interface IRealtimeFilter

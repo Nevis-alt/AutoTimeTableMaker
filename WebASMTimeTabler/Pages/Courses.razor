@@ -1,7 +1,9 @@
 ﻿@page "/courses"
-@using WebASMTimeTabler.Models
-@using WebASMTimeTabler.Shared
+@using WebASMTimeTabler.Core
+@using WebASMTimeTabler.ComponentPages
 @inject HttpClient Http
+@inject NavigationManager NavManager
+@inject ScheduleStateService StateService
 
 <PageTitle>강의 목록</PageTitle>
 
@@ -33,6 +35,7 @@ else
         <button class="btn btn-sm btn-link ms-2" @onclick="ToggleSelectedCourses">
             @(showSelectedCourses ? "▲ 접기" : "▼ 펼치기")
         </button>
+        <button class="btn btn-primary" @onclick="GoToTimetable">시간표 생성</button>
     </h3>
 
     @if (showSelectedCourses)
@@ -179,4 +182,10 @@ else
     }
 
     private bool IsSelected(Course course) => selectedCourses.Contains(course);
+
+    private void GoToTimetable()
+    {
+        StateService.SetSelectedCourses(selectedCourses.ToList());
+        NavManager.NavigateTo("/timetable");
+    }
 }

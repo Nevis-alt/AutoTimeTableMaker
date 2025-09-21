@@ -1,5 +1,16 @@
-namespace WebASMTimeTabler.Models;
+namespace WebASMTimeTabler.Core;
 
+public enum DayOfWeek
+{
+    월 = 1,
+    화 = 2,
+    수 = 3,
+    목 = 4,
+    금 = 5,
+    토 = 6,
+    일 = 0,
+    e러닝 = -1 // e러닝은 요일이 없음
+}
 public class CourseTime
 {
     public DayOfWeek day { get; init; }
@@ -9,22 +20,18 @@ public class CourseTime
 
     public override string ToString()
     {
-        string[] koreanDays = { "월", "화", "수", "목", "금", "토", "일" };
-        string dayStr;
-        int intDay = (int)day;
-        if (intDay == -1)
+        string dayStr = day switch
         {
-            return "(e러닝)";
-        }
-        else if (intDay >= 0 && intDay <= 6)
-        {
-            // 0=월, 1=화, ..., 6=일로 출력
-            dayStr = koreanDays[intDay];
-        }
-        else
-        {
-            dayStr = "알수없음";
-        }
+            DayOfWeek.월 => "월",
+            DayOfWeek.화 => "화",
+            DayOfWeek.수 => "수",
+            DayOfWeek.목 => "목",
+            DayOfWeek.금 => "금",
+            DayOfWeek.토 => "토",
+            DayOfWeek.일 => "일",
+            DayOfWeek.e러닝 => "e러닝",
+            _ => "알수없음"
+        };
         return $"({dayStr}, {Room}, {start}-{end})";
     }
 }
