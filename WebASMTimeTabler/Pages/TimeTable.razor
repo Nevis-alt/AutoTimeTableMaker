@@ -19,14 +19,49 @@ else
 {
     @foreach (var (schedule, idx) in generatedSchedules.Select((s, i) => (s, i + 1)))
     {
-        <div class="card my-2 p-2">
+        <div class="card my-3 p-3">
             <h5>시간표 @idx</h5>
-            <ul>
-                @foreach (var c in schedule)
-                {
-                    <li>@c.Name (@c.Professor) - @string.Join(", ", c.Times)</li>
-                }
-            </ul>
+            <table class="table table-bordered text-center align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 80px;">시간</th>
+                        @foreach (var day in DaysOfWeek)
+                        {
+                            <th>@day</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int hour = StartHour; hour <= EndHour; hour++)
+                    {
+                        <tr>
+                            <td>@(hour+7):00</td>
+                            @foreach (var day in DaysOfWeek)
+                            {
+                                var courseSlot = schedule
+                                    .SelectMany(c => c.Times.Select(t => (Course: c, Time: t)))
+                                    .FirstOrDefault(x => x.Time.day.ToString() == day && x.Time.start == hour);
+
+                                if (courseSlot.Course != null)
+                                {
+                                    var color = GetCourseColor(courseSlot.Course.Name);
+
+                                    <td rowspan="@(courseSlot.Time.end - courseSlot.Time.start + 1)" 
+                                        style="background-color:@color; color:white; font-weight:bold;">
+                                        @courseSlot.Course.Name <br />
+                                        <small>@courseSlot.Course.Professor</small>
+                                    </td>
+                                }
+                                else if (!schedule.SelectMany(c => c.Times)
+                                                  .Any(t => t.day.ToString() == day && t.start < hour && t.end >= hour))
+                                {
+                                    <td></td>
+                                }
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
     }
 }
@@ -34,16 +69,29 @@ else
 @code {
     private List<List<Course>> generatedSchedules = new();
 
+    private static readonly string[] DaysOfWeek = { "월", "화", "수", "목", "금", "토" };
+    private const int StartHour = 1;
+    private const int EndHour = 17;
+
+    // 랜덤 색상 저장용
+    private Dictionary<string, string> courseColors = new();
+
     protected override void OnInitialized()
     {
         var selected = StateService.SelectedCourses;
-        if (selected.Any())
+        generatedSchedules = selected.Any()
+            ? ScheduleService.GenerateSchedules(selected)
+            : new List<List<Course>>();
+    }
+
+    private string GetCourseColor(string courseName)
+    {
+        if (!courseColors.ContainsKey(courseName))
         {
-            generatedSchedules = ScheduleService.GenerateSchedules(selected);
+            var rand = new Random(courseName.GetHashCode());
+            var hue = rand.Next(0, 360);
+            courseColors[courseName] = $"hsl({hue}, 70%, 50%)"; // 예쁜 파스텔 톤
         }
-        else
-        {
-            generatedSchedules = new List<List<Course>>();
-        }
+        return courseColors[courseName];
     }
 }
