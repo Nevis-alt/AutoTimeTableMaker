@@ -2,10 +2,17 @@ using WebASMTimeTabler.Core;
 
 public class ScheduleStateService
 {
-    public List<Course> SelectedCourses { get; private set; } = new List<Course>();
+    public HashSet<Course> SelectedCourses { get; } = new HashSet<Course>(new CourseComparer());
 
-    public void SetSelectedCourses(List<Course> courses)
+    public void ToggleCourse(Course course)
     {
-        SelectedCourses = courses;
+        if (SelectedCourses.Contains(course))
+            SelectedCourses.Remove(course);
+        else
+            SelectedCourses.Add(course);
     }
+
+    public bool IsSelected(Course course) => SelectedCourses.Contains(course);
+
+    public void Clear() => SelectedCourses.Clear();
 }

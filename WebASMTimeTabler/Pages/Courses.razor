@@ -31,7 +31,7 @@ else
         <button class="btn btn-sm btn-secondary" @onclick="DeselectAllFiltered">현재 목록 전체 해제</button>
     </div>
     <h3 class="mt-4 d-flex align-items-center">
-        <span>선택된 과목 @(selectedCourses.Count)개</span>
+        <span>선택된 과목 @(StateService.SelectedCourses.Count)개</span>
         <button class="btn btn-sm btn-link ms-2" @onclick="ToggleSelectedCourses">
             @(showSelectedCourses ? "▲ 접기" : "▼ 펼치기")
         </button>
@@ -40,14 +40,14 @@ else
 
     @if (showSelectedCourses)
     {
-        @if (selectedCourses.Count == 0)
+        @if (StateService.SelectedCourses.Count == 0)
         {
             <p><em>선택된 과목이 없습니다.</em></p>
         }
         else
         {
             <ul class="list-group">
-                @foreach (var course in selectedCourses)
+                @foreach (var course in StateService.SelectedCourses)
                 {
                     <li @key="course.ClassNumber" class="list-group-item d-flex justify-content-between align-items-center">
                         <span>@course.Name (@course.Professor)</span>
@@ -133,19 +133,23 @@ else
     }
     private void SelectAllFiltered()
     {
-        selectedCourses.UnionWith(filteredCourses);
+        foreach (var c in filteredCourses)
+            if(!StateService.IsSelected(c)) StateService.SelectedCourses.Add(c);
+        //selectedCourses.UnionWith(filteredCourses);
         StateHasChanged();
     }
 
     private void DeselectAllFiltered()
     {
-        selectedCourses.ExceptWith(filteredCourses);
+        foreach(var course in filteredCourses)
+            if(StateService.IsSelected(course)) StateService.SelectedCourses.Remove(course);
+        //selectedCourses.ExceptWith(filteredCourses);
         StateHasChanged();
     }
 
     private void RemoveCourse(Course course)
     {
-        selectedCourses.Remove(course);
+        StateService.SelectedCourses.Remove(course);
         StateHasChanged();
     }
 
@@ -172,20 +176,18 @@ else
         }
     }
 
-    private HashSet<Course> selectedCourses = new HashSet<Course>(new CourseComparer());
+    //private HashSet<Course> selectedCourses = new HashSet<Course>(new CourseComparer());
     private void ToggleCourse(Course course)
     {
-        if (!selectedCourses.Add(course)) // 이미 있으면 제거
-            selectedCourses.Remove(course);
-
+        StateService.ToggleCourse(course);
         StateHasChanged();
     }
 
-    private bool IsSelected(Course course) => selectedCourses.Contains(course);
+    private bool IsSelected(Course course) => StateService.SelectedCourses.Contains(course);
 
     private void GoToTimetable()
     {
-        StateService.SetSelectedCourses(selectedCourses.ToList());
+        //StateService.SetSelectedCourses(selectedCourses.ToList());
         NavManager.NavigateTo("/timetable");
     }
 }

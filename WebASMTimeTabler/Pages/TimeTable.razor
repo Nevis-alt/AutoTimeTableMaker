@@ -78,7 +78,7 @@ else
 
     protected override void OnInitialized()
     {
-        var selected = StateService.SelectedCourses;
+        var selected = StateService.SelectedCourses.ToList();
         generatedSchedules = selected.Any()
             ? ScheduleService.GenerateSchedules(selected)
             : new List<List<Course>>();
