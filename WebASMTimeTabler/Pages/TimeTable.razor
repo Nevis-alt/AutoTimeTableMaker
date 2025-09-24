@@ -7,11 +7,11 @@
 
 <h1>생성된 시간표</h1>
 
-@if (generatedSchedules == null)
+@if (generatedSchedules.Count == 0 && loading)
 {
     <p><em>시간표 생성 중...</em></p>
 }
-else if (!generatedSchedules.Any())
+else if (generatedSchedules.Count == 0 && !loading)
 {
     <p><em>시간표가 없습니다.</em></p>
 }
@@ -21,7 +21,7 @@ else
     {
         <div class="card my-3 p-3">
             <h5>시간표 @idx</h5>
-            <table class="table table-bordered text-center align-middle">
+            <table class="table table-bordered text-center align-middle" style="width: 100%; table-layout: fixed;">
                 <thead class="table-light">
                     <tr>
                         <th style="width: 80px;">시간</th>
@@ -72,16 +72,23 @@ else
     private static readonly string[] DaysOfWeek = { "월", "화", "수", "목", "금", "토" };
     private const int StartHour = 1;
     private const int EndHour = 17;
+    private bool loading = true;
 
     // 랜덤 색상 저장용
     private Dictionary<string, string> courseColors = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         var selected = StateService.SelectedCourses.ToList();
-        generatedSchedules = selected.Any()
-            ? ScheduleService.GenerateSchedules(selected)
-            : new List<List<Course>>();
+        if (selected.Any())
+        {
+            await foreach (var schedule in ScheduleService.GenerateSchedulesAsync(selected))
+            {
+                generatedSchedules.Add(schedule);
+                StateHasChanged(); // 🔑 새로운 결과가 나올 때마다 UI 갱신
+            }
+        }
+        loading = false;
     }
 
     private string GetCourseColor(string courseName)

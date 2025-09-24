@@ -17,13 +17,14 @@ public class ScheduleGenerator
         _filters = filters ?? new List<IRealtimeFilter>();
     }
 
-    public IEnumerable<List<Course>> Generate()
+    public async IAsyncEnumerable<List<Course>> GenerateAsync(int maxSchedules = int.MaxValue)
     {
         int n = _groups.Count;
         if (n == 0) yield break;
 
         int[] idx = new int[n];
         List<Course> schedule = new();
+        int count = 0;
 
         while (true)
         {
@@ -56,6 +57,10 @@ public class ScheduleGenerator
 
             if (valid)
                 yield return new List<Course>(schedule);
+            count++;
+            if (count >= maxSchedules) yield break;
+            await Task.Yield(); // UI 스레드 양보
+
 
             // 다음 조합 (odometer 방식) + 백트래킹
             int k = n - 1;
@@ -93,10 +98,10 @@ public class ScheduleService
     {
         _maxPages = maxPages; // 최대 반환 개수
     }
-    public List<List<Course>> GenerateSchedules(List<Course> selectedCourses)
+    public async IAsyncEnumerable<List<Course>> GenerateSchedulesAsync(List<Course> selectedCourses)
     {
         if (selectedCourses == null || selectedCourses.Count == 0)
-                    return new List<List<Course>>();
+            yield break;
         //var allCourses = selectedCourses;//reader.LoadSelectCourses(selectedCourses);
         /* 디리디리디디딕디리버기기깅깅
         foreach (var course in allCourses)
@@ -124,20 +129,15 @@ public class ScheduleService
         };
 
         var generator = new ScheduleGenerator(groupedCourses, realtimeFilters);
-        var result = new List<List<Course>>(_maxPages);
 
-        // yield 기반 조합 생성, 최종 필터 적용 및 _maxPages개씩 반환
-        foreach (var schedule in generator.Generate())
+        // yield 기반 조합 생성, 최종 필터 적용 및 생성되는대로 반환
+        await foreach (var schedule in generator.GenerateAsync(_maxPages))
         {
             if (finalFilters.Any(f => !f.Apply(schedule)))
                 continue;
 
-            result.Add(schedule);
-
-            if (result.Count >= _maxPages)
-                break;
-        }
-        return result;
+            yield return schedule;
+        };
     }
 }
 
