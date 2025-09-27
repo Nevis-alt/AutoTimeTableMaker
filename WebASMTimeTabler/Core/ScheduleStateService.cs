@@ -3,6 +3,8 @@ using WebASMTimeTabler.Core;
 public class ScheduleStateService
 {
     public HashSet<Course> SelectedCourses { get; } = new HashSet<Course>(new CourseComparer());
+    public List<IRealtimeFilter> RealtimeFilters { get; } = new List<IRealtimeFilter>();
+    public List<IFinalFilter> FinalFilters { get; } = new List<IFinalFilter>();
 
     public void ToggleCourse(Course course)
     {

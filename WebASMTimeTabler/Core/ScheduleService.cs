@@ -93,10 +93,14 @@ public class ScheduleGenerator
 public class ScheduleService
 {
     private readonly int _maxPages;
+    private readonly List<IRealtimeFilter> _realtimeFilters;
+    private readonly List<IFinalFilter> _finalFilters;
 
-    public ScheduleService(int maxPages = 50)
+    public ScheduleService(int maxPages = 50, List<IRealtimeFilter>? realtimeFilters = null, List<IFinalFilter>? finalFilters = null)
     {
         _maxPages = maxPages; // 최대 반환 개수
+        _realtimeFilters = realtimeFilters ?? new List<IRealtimeFilter>() { new TimeConflictFilter()};
+        _finalFilters = finalFilters ?? new List<IFinalFilter>();
     }
     public async IAsyncEnumerable<List<Course>> GenerateSchedulesAsync(List<Course> selectedCourses)
     {
@@ -116,7 +120,7 @@ public class ScheduleService
         var groupedCourses = selectedCourses.GroupBy(c => c.Name)
                       .Select(g => g.ToList())
                       .ToList();
-
+        /*
         var realtimeFilters = new List<IRealtimeFilter>
         {
             new TimeConflictFilter(),
@@ -127,13 +131,14 @@ public class ScheduleService
             new IdleTimeFilter(2), // 최대 2시간 유휴 시간 허용
             // 필요시 추가 가능
         };
+        */
 
-        var generator = new ScheduleGenerator(groupedCourses, realtimeFilters);
+        var generator = new ScheduleGenerator(groupedCourses, _realtimeFilters);
 
         // yield 기반 조합 생성, 최종 필터 적용 및 생성되는대로 반환
         await foreach (var schedule in generator.GenerateAsync(_maxPages))
         {
-            if (finalFilters.Any(f => !f.Apply(schedule)))
+            if (_finalFilters.Any(f => !f.Apply(schedule)))
                 continue;
 
             yield return schedule;

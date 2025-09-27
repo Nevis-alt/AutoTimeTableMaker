@@ -38,22 +38,29 @@ public class LunchBreakFilter : IRealtimeFilter
 public class BreakTimeFilter : IRealtimeFilter
 {
     private readonly DayOfWeek day;                 // 요일 (enum)
-    private readonly (int start, int end) timeRange;
+    private readonly (int start, int end) _timeRange;
 
-    public BreakTimeFilter(DayOfWeek day, (int start, int end) timeRange)
+    public BreakTimeFilter(DayOfWeek day, (int start, int end)? timeRange = null)
     {
         if ((int)day < 0 || (int)day > 6)
             throw new ArgumentException("요일은 0(월)부터 6(일) 사이의 값이어야 합니다.");
         this.day = day;
-        if (timeRange.start < 0 || timeRange.start > 24 || timeRange.end < 0 || timeRange.end > 24 || timeRange.start >= timeRange.end)
+        if (timeRange is not null)
+        {
+            this._timeRange = timeRange.Value;
+        }
+        else
+        {
+            this._timeRange = (0, 24);
+        }
+        if (_timeRange.start < 0 || _timeRange.start > 24 || _timeRange.end < 0 || _timeRange.end > 24 || _timeRange.start >= _timeRange.end)
             throw new ArgumentException("시간대는 0부터 24 사이의 값이어야 하며, 시작 시간이 종료 시간보다 작아야 합니다.");
-        this.timeRange = timeRange;
     }
 
     public bool Apply(Course nextCourse, HashSet<(DayOfWeek day, int hour)> occupiedSlots)
     {
         // nextCourse만으로도 해당 요일, 시간대 침범 여부 판단
-        return !nextCourse.Times.Any(t => t.day == day && t.start < timeRange.end && t.end > timeRange.start);
+        return !nextCourse.Times.Any(t => t.day == day && t.start < _timeRange.end && t.end > _timeRange.start);
     }
 }
 
