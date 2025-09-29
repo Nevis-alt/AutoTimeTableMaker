@@ -56,7 +56,15 @@ public class ScheduleGenerator
             }
 
             if (valid)
+            {
+                //debuging
+                foreach (var i in schedule)
+                {
+                    Console.WriteLine(i);
+                }
+                Console.WriteLine();
                 yield return new List<Course>(schedule);
+            }
             count++;
             if (count >= maxSchedules) yield break;
             await Task.Yield(); // UI 스레드 양보

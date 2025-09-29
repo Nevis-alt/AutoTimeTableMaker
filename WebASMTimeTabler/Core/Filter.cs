@@ -14,7 +14,7 @@ public interface IRealtimeFilter
 
 
 // 점심시간 필터 <= 설정 시간 동안 수업이 없도록 강제
-// 기본값은 12시부터 13시까지
+// 기본값은 12시부터 13시까지(강의요시 기준으로 7~8)
 // 필요시 생성자에 (시작시간, 종료시간) 튜플로 전달
 // 예: new LunchBreakFilter((11, 12)) -> 11시부터 12시까지 점심시간
 public class LunchBreakFilter : IRealtimeFilter
@@ -72,7 +72,7 @@ public class MorningFilter : IRealtimeFilter
 {
     private readonly int earliestAllowed;
 
-    public MorningFilter(int earliestAllowed = 10) // 기본: 10시 이후만 허용
+    public MorningFilter(int earliestAllowed = 2) // 기본: 10시(강의요시 기준으로 2 == (09:30~10:00)) 이후만 허용
     {
         this.earliestAllowed = earliestAllowed;
     }

@@ -1,176 +1,185 @@
-﻿    @page "/timetable"
-    @using WebASMTimeTabler.Core
-    @using CoreDay = WebASMTimeTabler.Core.DayOfWeek
-    @inject ScheduleStateService StateService
+﻿@page "/timetable"
+@using WebASMTimeTabler.Core
+@using CoreDay = WebASMTimeTabler.Core.DayOfWeek
+@inject ScheduleStateService StateService
 
-    <PageTitle>시간표</PageTitle>
+<PageTitle>시간표</PageTitle>
 
 
-    <div class="d-flex gap-4">
-        <!-- 좌측: 필터 패널 -->
-        <div class="card p-3" style="width: 300px;">
-            <h5>필터 설정</h5>
-            
-            <div class="form-check">
-                <input type="checkbox" class="form-check-input" @bind="useLunchBreak">
-                <label class="form-check-label">점심시간 공강</label>
-            </div>
-
-            <div class="form-check">
-                <input type="checkbox" class="form-check-input" @bind="useMorningFilter">
-                <label class="form-check-label">아침수업 금지</label>
-            </div>
-
-            <div class="form-check">
-                <input type="checkbox" class="form-check-input" @bind="useNoFriday">
-                <label class="form-check-label">금요일 공강</label>
-            </div>
-
-            <button class="btn btn-primary mt-3" @onclick="GenerateSchedules">시간표 생성</button>
+<div class="d-flex gap-4">
+    <div class="card p-3 flex-shrink-0" style="width: 300px;">
+        <h5>필터 설정</h5>
+        
+        <div class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="useLunchBreak">
+            <label class="form-check-label">점심시간 공강</label>
         </div>
-        <!-- 우측: 시간표 결과 패널 -->
-        <div class="flex-grow-1">
-            @if (generatedSchedules.Count == 0 && loading)
+
+        <div class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="useMorningFilter">
+            <label class="form-check-label">아침수업 금지</label>
+        </div>
+
+        <div class="form-check">
+            <input type="checkbox" class="form-check-input" @bind="useNoFriday">
+            <label class="form-check-label">금요일 공강</label>
+        </div>
+
+        <button class="btn btn-primary mt-3" @onclick="GenerateSchedules">시간표 생성</button>
+    </div>
+    <!-- 우측: 시간표 결과 패널 -->
+    <div class="flex-grow-1">
+        @if (generatedSchedules.Count == 0 && loading)
+        {
+            <p><em>시간표 생성 중...</em></p>
+        }
+        else if (generatedSchedules.Count == 0 && !loading)
+        {
+            <p><em>조건에 맞는 시간표가 없습니다.</em></p>
+        }
+        else
+        {
+        @foreach (var (schedule, idx) in generatedSchedules.Select((s, i) => (s, i + 1)))
             {
-                <p><em>시간표 생성 중...</em></p>
-            }
-            else if (generatedSchedules.Count == 0 && !loading)
-            {
-                <p><em>조건에 맞는 시간표가 없습니다.</em></p>
-            }
-            else
-            {
-            @foreach (var (schedule, idx) in generatedSchedules.Select((s, i) => (s, i + 1)))
-                {
-                    <div class="card my-3 p-3">
-                        <h5>시간표 @idx</h5>
-                        <table class="table table-bordered text-center align-middle" style="width: 100%; table-layout: fixed;">
-                            <thead class="table-light">
+                <div class="card my-3 p-3">
+                    <h5>시간표 @idx</h5>
+                    <table class="table table-bordered text-center align-middle" style="width: 100%; table-layout: fixed;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 80px;">시간</th>
+                                @foreach (var day in DaysOfWeek)
+                                {
+                                    <th>@day</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int hour = StartHour; hour <= EndHour; hour++)
+                            {
                                 <tr>
-                                    <th style="width: 80px;">시간</th>
+                                    @{
+                                        // hour=1은 9:00, hour가 1 증가하면 30분 증가
+                                        // 9:00 + (hour - 1) * 30분
+                                        var totalMinutes = 9 * 60 + (hour - 1) * 30;
+                                        var displayHour = totalMinutes / 60;
+                                        var displayMinute = totalMinutes % 60;
+                                        
+                                        // 9:00, 9:30, 10:00, ... 형식으로 표시
+                                        <span>@($"{displayHour:D2}:{displayMinute:D2}")</span>
+                                    }
                                     @foreach (var day in DaysOfWeek)
                                     {
-                                        <th>@day</th>
+                                        // 1. 현재 hour에 시작하는 수업이 있는지 확인
+                                        var courseSlot = schedule
+                                            .SelectMany(c => c.Times.Select(t => (Course: c, Time: t)))
+                                            .FirstOrDefault(x => x.Time.day.ToString() == day && x.Time.start == hour);
+
+                                        if (courseSlot.Course != null)
+                                        {
+                                            // 1-A. 수업이 시작하는 셀을 rowspan과 함께 렌더링
+                                            var color = GetCourseColor(courseSlot.Course.Name);
+                                            <td rowspan="@(courseSlot.Time.end - courseSlot.Time.start + 1)" 
+                                                style="background-color:@color; color:white; font-weight:bold;">
+                                                @courseSlot.Course.Name <br />
+                                                <small>@courseSlot.Course.Professor</small>
+                                            </td>
+                                        }
+                                        // 2. 현재 hour가 이미 렌더링된 rowspan 셀에 포함되어 있는지 확인
+                                        else if (schedule.SelectMany(c => c.Times)
+                                                         .Any(t => t.day.ToString() == day && t.start < hour && t.end >= hour))
+                                        {
+                                            // 2-A. 이미 위에서 렌더링된 셀에 포함되었으므로, 현재 <td>는 렌더링하지 않음
+                                            // 아무것도 출력하지 않고 이 루프를 건너뜁니다.
+                                        }
+                                        else
+                                        {
+                                            // 3. 수업도 없고 rowspan에 포함되지 않은 완전히 빈 셀을 렌더링
+                                            <td></td>
+                                        }
                                     }
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @for (int hour = StartHour; hour <= EndHour; hour++)
-                                {
-                                    <tr>
-                                        <td>@(hour+7):00</td>
-                                        @foreach (var day in DaysOfWeek)
-                                        {
-                                            var courseSlot = schedule
-                                                .SelectMany(c => c.Times.Select(t => (Course: c, Time: t)))
-                                                .FirstOrDefault(x => x.Time.day.ToString() == day && x.Time.start == hour);
-
-                                            if (courseSlot.Course != null)
-                                            {
-                                                var color = GetCourseColor(courseSlot.Course.Name);
-
-                                                <td rowspan="@(courseSlot.Time.end - courseSlot.Time.start + 1)" 
-                                                    style="background-color:@color; color:white; font-weight:bold;">
-                                                    @courseSlot.Course.Name <br />
-                                                    <small>@courseSlot.Course.Professor</small>
-                                                </td>
-                                            }
-                                            else if (!schedule.SelectMany(c => c.Times)
-                                                            .Any(t => t.day.ToString() == day && t.start < hour && t.end >= hour))
-                                            {
-                                                <td></td>
-                                            }
-                                        }
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
-        </div>
+        }
     </div>
+</div>
 
 
-    @code {
-        private List<List<Course>> generatedSchedules = new();
+@code {
+    private List<List<Course>> generatedSchedules = new();
 
-        private static readonly string[] DaysOfWeek = { "월", "화", "수", "목", "금", "토" };
-        private const int StartHour = 1;
-        private const int EndHour = 17;
-        private bool loading = false;
-        
-        private bool useLunchBreak = false;
-        private bool useMorningFilter = false;
-        private bool useNoFriday = false;
+    private static readonly string[] DaysOfWeek = { "월", "화", "수", "목", "금", "토" };
+    private const int StartHour = 1;
+    private const int EndHour = 23;
+    private bool loading = false;
+    
+    private bool useLunchBreak = false;
+    private bool useMorningFilter = false;
+    private bool useNoFriday = false;
 
-        // 랜덤 색상 저장용
-        private Dictionary<string, string> courseColors = new();
-        /*
-        protected override async Task OnInitializedAsync()
+    // 랜덤 색상 저장용
+    private Dictionary<string, string> courseColors = new();
+    /*
+    protected override async Task OnInitializedAsync()
+    {
+        var selected = StateService.SelectedCourses.ToList();
+        if (selected.Any())
         {
-            var selected = StateService.SelectedCourses.ToList();
-            if (selected.Any())
+            await foreach (var schedule in ScheduleService.GenerateSchedulesAsync(selected))
             {
-                await foreach (var schedule in ScheduleService.GenerateSchedulesAsync(selected))
-                {
-                    generatedSchedules.Add(schedule);
-                    StateHasChanged(); // 🔑 새로운 결과가 나올 때마다 UI 갱신
-                }   
-            }
-            loading = false;
+                generatedSchedules.Add(schedule);
+                StateHasChanged(); // 🔑 새로운 결과가 나올 때마다 UI 갱신
+            }   
         }
-        */
-
-        private string GetCourseColor(string courseName)
-        {
-            if (!courseColors.ContainsKey(courseName))
-            {
-                var rand = new Random(courseName.GetHashCode());
-                var hue = rand.Next(0, 360);
-                courseColors[courseName] = $"hsl({hue}, 70%, 50%)"; // 예쁜 파스텔 톤
-            }
-            return courseColors[courseName];
-        }
-        private async Task GenerateSchedules()
-        {
-            loading = true;
-            generatedSchedules.Clear();
-            StateHasChanged(); // "생성 중..." 메시지를 즉시 표시하기 위해 호출
-
-            var selectedCourses = StateService.SelectedCourses.ToList();
-            var realtimeFilters = new List<IRealtimeFilter> { new TimeConflictFilter() };
-            var finalFilters = new List<IFinalFilter>();
-            if (useLunchBreak) realtimeFilters.Add(new LunchBreakFilter());
-            if (useMorningFilter) realtimeFilters.Add(new MorningFilter());
-            if (useNoFriday) realtimeFilters.Add(new NoDayFilter(CoreDay.금));
-
-            var service = new ScheduleService(
-                maxPages: 50,
-                realtimeFilters: realtimeFilters,
-                finalFilters: finalFilters
-            );
-
-            // Task.Run을 사용하여 시간표 생성 로직을 백그라운드 스레드에서 실행
-            await Task.Run(async () =>
-            {
-                // IAsyncEnumerable을 사용하여 비동기적으로 스케줄을 받음
-                await foreach (var schedule in service.GenerateSchedulesAsync(selectedCourses))
-                {
-                    // InvokeAsync를 사용하여 UI 스레드에서 안전하게 상태를 업데이트
-                    await InvokeAsync(() =>
-                    {
-                        generatedSchedules.Add(schedule);
-                        StateHasChanged(); // 결과가 나올 때마다 UI를 즉시 갱신
-                    });
-                }
-
-                // 모든 작업이 끝난 후, 다시 InvokeAsync를 통해 loading 상태를 변경
-                await InvokeAsync(() =>
-                {
-                    loading = false;
-                    StateHasChanged();
-                });
-            });
-        }
+        loading = false;
     }
+    */
+
+    private string GetCourseColor(string courseName)
+    {
+        if (!courseColors.ContainsKey(courseName))
+        {
+            var rand = new Random(courseName.GetHashCode());
+            var hue = rand.Next(0, 360);
+            courseColors[courseName] = $"hsl({hue}, 70%, 50%)"; // 예쁜 파스텔 톤
+        }
+        return courseColors[courseName];
+    }
+    private async Task GenerateSchedules()
+    {
+        loading = true;
+        generatedSchedules.Clear();
+        StateHasChanged(); // "생성 중..." 메시지를 즉시 표시하기 위해 호출
+
+        var selectedCourses = StateService.SelectedCourses.ToList();
+        var realtimeFilters = new List<IRealtimeFilter> { new TimeConflictFilter() };
+        var finalFilters = new List<IFinalFilter>();
+        if (useLunchBreak) realtimeFilters.Add(new LunchBreakFilter());
+        if (useMorningFilter) realtimeFilters.Add(new MorningFilter());
+        if (useNoFriday) realtimeFilters.Add(new NoDayFilter(CoreDay.금));
+
+        var service = new ScheduleService(
+            maxPages: 50,
+            realtimeFilters: realtimeFilters,
+            finalFilters: finalFilters
+        );
+
+        // IAsyncEnumerable을 직접 순회합니다.
+        await foreach (var schedule in service.GenerateSchedulesAsync(selectedCourses))
+        {
+            generatedSchedules.Add(schedule);
+            StateHasChanged(); // 결과가 나올 때마다 UI를 갱신
+
+            // ✅ 핵심: UI 스레드에 제어권을 잠시 넘겨줘서 멈춤 현상을 방지합니다.
+            await Task.Delay(1);
+        }
+
+        // 모든 작업이 끝난 후 loading 상태를 변경합니다.
+        //Console.WriteLine($"총 {generatedSchedules.Count}개의 시간표 생성됨."); // deguging
+        loading = false;
+        StateHasChanged();
+    }
+}
