@@ -25,6 +25,15 @@ jobs:
       - name: Publish Blazor WASM (Build)
         # 릴리스 모드로 빌드하며, 출력 경로는 자동으로 정해집니다.
         run: dotnet publish WebASMTimeTabler/WebASMTimeTabler.csproj -c Release -o ./publish_output --nologo 
+        
+      - name: Patch Base Href for GitHub Pages
+        # 배포 폴더로 이동
+        working-directory: ./publish_output/wwwroot
+        # index.html 파일 내의 <base href="/" />를 <base href="/AutoTimeTableMaker/" />로 변경
+        run: |
+          sed -i 's/<base href="\/" \/>/<base href="\/AutoTimeTableMaker\/" \/>/g' index.html
+          # 404.html 파일도 동일하게 수정합니다.
+          sed -i 's/<base href="\/" \/>/<base href="\/AutoTimeTableMaker\/" \/>/g' 404.html
 
       # ----------------------------------------------------------------------
       # 핵심 배포 단계: 빌드된 파일을 gh-pages 브랜치에 푸시합니다.
