@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ConTimeTabler")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+41d75b8b60725a2b79e84e78dc9791b97c33113b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1ef523ece463b0dcd8aeafa54a9a56a6b35d6d08")]
 [assembly: System.Reflection.AssemblyProductAttribute("ConTimeTabler")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ConTimeTabler")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
