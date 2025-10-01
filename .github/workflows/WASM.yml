@@ -34,6 +34,9 @@ jobs:
           sed -i 's/<base href="\/" \/>/<base href="\/AutoTimeTableMaker\/" \/>/g' index.html
           # 404.html 파일도 동일하게 수정합니다.
           sed -i 's/<base href="\/" \/>/<base href="\/AutoTimeTableMaker\/" \/>/g' 404.html
+          
+          echo "" > .nojekyll
+          echo "Generated .nojekyll file in the deployment directory."
 
       # ----------------------------------------------------------------------
       # 핵심 배포 단계: 빌드된 파일을 gh-pages 브랜치에 푸시합니다.
