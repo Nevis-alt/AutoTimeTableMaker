@@ -24,7 +24,7 @@ jobs:
 
       - name: Publish Blazor WASM (Build)
         # 릴리스 모드로 빌드하며, 출력 경로는 자동으로 정해집니다.
-        run: dotnet publish -c Release --nologo
+        run: dotnet publish WebASMTimeTabler/WebASMTimeTabler.csproj -c Release -o /app/publish --nologo 
 
       # ----------------------------------------------------------------------
       # 핵심 배포 단계: 빌드된 파일을 gh-pages 브랜치에 푸시합니다.
@@ -35,7 +35,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # dotnet publish 명령의 표준 출력 경로를 지정합니다. 
           # 경로는 'bin/Release/{TargetFramework}/publish/wwwroot' 형태입니다.
-          publish_dir: bin/Release/net8.0/publish/wwwroot
+          publish_dir: /app/publish/wwwroot
           publish_branch: gh-pages # GitHub Pages가 읽을 브랜치
           
           # **중요:** Blazor WASM 라우팅을 위해 .nojekyll 파일을 추가합니다.
