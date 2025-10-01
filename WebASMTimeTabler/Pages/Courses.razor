@@ -143,7 +143,6 @@ else
     {
         foreach(var course in filteredCourses)
             if(StateService.IsSelected(course)) StateService.SelectedCourses.Remove(course);
-        //selectedCourses.ExceptWith(filteredCourses);
         StateHasChanged();
     }
 
